@@ -959,7 +959,7 @@ export default async function handler(req) {
       }
     }
 
-    json = withPublicResponseModel(json, responseModelName, Boolean(azureAliasInfo));
+    json = withPublicResponseModel(json, responseModelName, Boolean(azureAliasInfo), minimaxCnPublicId || null);
 
     const reasoning = readReasoning(providerKey, json.choices?.[0]?.message);
     if (hasReasoningValue(reasoning) && replyReasoningKey) {
@@ -1320,7 +1320,7 @@ export default async function handler(req) {
               await cacheReasoningSnapshot();
             }
             if (delta?.content != null) accContent += delta.content;
-            json = withPublicResponseModel(json, responseModelName, Boolean(azureAliasInfo));
+            json = withPublicResponseModel(json, responseModelName, Boolean(azureAliasInfo), minimaxCnPublicId || null);
             await writer.write(
               encoder.encode(
                 "data: " + JSON.stringify(stripResponseChunk(json)) + "\n\n"

@@ -68,7 +68,7 @@ export function publicModelId(model) {
   return modelIdParts(model).publicId;
 }
 
-export function withPublicResponseModel(json, fallbackModel, forceAlias = false) {
+export function withPublicResponseModel(json, fallbackModel, forceAlias = false, forcePublicId = null) {
   if (!json || typeof json !== "object" || Array.isArray(json)) return json;
 
   // Error envelopes flow through unchanged. Even shapes like
@@ -85,8 +85,18 @@ export function withPublicResponseModel(json, fallbackModel, forceAlias = false)
   //
   // Restricted to payloads that look like a chat completion (have `choices`).
   const looksLikeCompletion = Array.isArray(json.choices);
-  if (forceAlias && fallbackPublicId && looksLikeCompletion) {
-    return { ...json, model: fallbackPublicId };
+  if (looksLikeCompletion) {
+    if (forceAlias && fallbackPublicId) {
+      return { ...json, model: fallbackPublicId };
+    }
+    // For region-prefixed models (minimax-cn-*, azure/*) the bare upstream
+    // name and the public id can differ (MiniMax-M2.7 vs cursorproxy/minimax-cn-MiniMax-M2.7).
+    // Always use the caller's public id when provided — it is the authoritative
+    // model identity the client selected and must not be replaced by the
+    // upstream deployment name.
+    if (forcePublicId) {
+      return { ...json, model: forcePublicId };
+    }
   }
 
   const currentPublicId = publicModelId(json.model);
@@ -115,6 +125,8 @@ export function withPublicResponseModel(json, fallbackModel, forceAlias = false)
     fallbackBare,
     "matchesRequested:",
     matchesRequested,
+    "forcePublicId:",
+    forcePublicId || "(none)",
     "looksLikeCompletion:",
     looksLikeCompletion
   );
