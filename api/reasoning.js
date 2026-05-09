@@ -4,8 +4,12 @@ import { createLogger } from "./logger.js";
 const { log, diag } = createLogger("reasoning");
 const { log: proxyLog } = createLogger("proxy");
 
+function isMinimaxFamily(providerKey) {
+  return providerKey === "minimax" || providerKey === "minimax_cn";
+}
+
 function reasoningField(providerKey) {
-  return providerKey === "minimax" ? "reasoning_details" : "reasoning_content";
+  return isMinimaxFamily(providerKey) ? "reasoning_details" : "reasoning_content";
 }
 
 function hasReasoningValue(value) {
@@ -35,12 +39,12 @@ function reasoningSize(value) {
 }
 
 function serializeReasoning(providerKey, value) {
-  return providerKey === "minimax" ? JSON.stringify(value) : String(value);
+  return isMinimaxFamily(providerKey) ? JSON.stringify(value) : String(value);
 }
 
 function deserializeReasoning(providerKey, stored) {
   if (!hasReasoningValue(stored)) return null;
-  if (providerKey !== "minimax") return stored;
+  if (!isMinimaxFamily(providerKey)) return stored;
   try {
     const parsed = JSON.parse(stored);
     return hasReasoningValue(parsed) ? parsed : null;
@@ -94,7 +98,7 @@ function hasReasoningField(providerKey, obj) {
 
 function updateStreamReasoning(providerKey, current, value) {
   if (!hasReasoningValue(value)) return current;
-  if (providerKey === "minimax") return value;
+  if (isMinimaxFamily(providerKey)) return value;
   return (current || "") + value;
 }
 
@@ -142,7 +146,7 @@ async function injectStoredReasoning({
   // Skip for providers that don't support reasoning fields:
   // - Anthropic's Messages API rejects `reasoning_content` (Extra inputs not permitted)
   // - Azure OpenAI's Chat Completions API may also reject it on certain models
-  const reasoningProviders = new Set(["deepseek", "kimi", "minimax"]);
+  const reasoningProviders = new Set(["deepseek", "kimi", "minimax", "minimax_cn"]);
   let injectedCount = 0;
   if (originalMessages && reasoningProviders.has(providerKey)) {
     const messages = parsedBody.messages;
@@ -182,7 +186,7 @@ async function injectStoredReasoning({
         // the provider's validator when the original reasoning was not captured
         // (e.g. the turn was produced before this proxy was in front, was a
         // simple greeting that produced no thinking, or the cache write was lost).
-        const placeholder = providerKey === "minimax"
+        const placeholder = isMinimaxFamily(providerKey)
           ? [{ type: "text", text: "(prior reasoning unavailable)" }]
           : "(prior reasoning unavailable)";
         messages[i] = { ...messages[i], [reasoningField(providerKey)]: placeholder };

@@ -32,7 +32,7 @@ export function rewriteUrl(req, provider) {
   //                /deepseek/v1/chat/completions → chat/completions
   //                /kimi/v1/chat/completions → chat/completions
   //                /minimax/v1/chat/completions → chat/completions
-  const pathMatch = url.pathname.match(/^(?:\/(?:azure-(?:openai|anthropic)|deepseek|kimi|minimax))?\/v[01]\/(.+)$/);
+  const pathMatch = url.pathname.match(/^(?:\/(?:azure-(?:openai|anthropic)|deepseek|kimi|minimax|minimax-cn))?\/v[01]\/(.+)$/);
   const path = pathMatch ? pathMatch[1] : "";
 
   url.pathname = "/api/proxy";

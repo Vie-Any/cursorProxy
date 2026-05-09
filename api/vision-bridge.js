@@ -12,7 +12,7 @@ const { log, diag } = createLogger("vision");
  * @param {Function} sha256ImageHash - image hashing helper
  * @returns {Promise<{messages: Array, convertedCount: number, errors: number}>}
  */
-async function convertImagesToText(messages, sha256ImageHash) {
+async function convertImagesToText(messages, sha256ImageHash, visionOpts = {}) {
   let convertedCount = 0;
   let errors = 0;
 
@@ -63,7 +63,7 @@ async function convertImagesToText(messages, sha256ImageHash) {
         return { msgIdx, partIdx, description: cached, fromCache: true };
       }
 
-      const description = await describeImage(imageUrl);
+      const description = await describeImage(imageUrl, undefined, visionOpts);
       if (description) {
         await kvSet(cacheKey, description).catch(() => {});
       }

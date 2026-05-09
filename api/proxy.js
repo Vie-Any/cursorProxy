@@ -60,8 +60,13 @@ const PROVIDERS = {
   },
   minimax: {
     url: process.env.UPSTREAM_MINIMAX || "https://api.minimax.io",
-    host: "api.minimax.io",
     apiKeyEnv: "MINIMAX_API_KEY",
+    authHeaderName: "authorization",
+    authHeaderPrefix: "Bearer ",
+  },
+  minimax_cn: {
+    url: process.env.UPSTREAM_MINIMAX_CN || "https://api.minimaxi.com",
+    apiKeyEnv: "MINIMAX_CN_API_KEY",
     authHeaderName: "authorization",
     authHeaderPrefix: "Bearer ",
   },
@@ -104,6 +109,16 @@ function log(...args) {
 
 function diag(...args) {
   console.log("[cursorProxy:proxy]", ...args);
+}
+
+/** Default DeepSeek model when the client omits `model` (e.g. legacy `/deepseek/v1/`). V4 preview: flash/pro. */
+function deepseekDefaultModel() {
+  const raw = process.env.DEEPSEEK_DEFAULT_MODEL;
+  if (typeof raw === "string") {
+    const t = raw.trim().replace(/^["']|["']$/g, "");
+    if (t) return t;
+  }
+  return "deepseek-v4-flash";
 }
 
 function decodedPathCandidates(pathParam) {
@@ -225,6 +240,17 @@ export default async function handler(req) {
   if (modelNames.changed) {
     bodyText = JSON.stringify(parsedBody);
     log("MODEL_STRIP", "from:", modelNames.input, "to:", upstreamModelName);
+  }
+
+  let minimaxCnPublicId = "";
+  if (providerKey === "minimax_cn" && parsedBody?.model && /^minimax-cn-/i.test(parsedBody.model)) {
+    minimaxCnPublicId = publicModelId(parsedBody.model);
+    parsedBody.model = parsedBody.model.replace(/^minimax-cn-/i, "");
+    bodyText = JSON.stringify(parsedBody);
+    modelNames = normalizeParsedBodyModel(parsedBody);
+    upstreamModelName = modelNames.bare;
+    responseModelName = minimaxCnPublicId;
+    log("MODEL_STRIP_REGION", "upstreamModel:", upstreamModelName, "publicId:", minimaxCnPublicId);
   }
 
   // Azure OpenAI alias resolution. Public model ids like `gpt-general` are
@@ -576,7 +602,7 @@ export default async function handler(req) {
     diag("UNKNOWN_PROVIDER", "model:", parsedBody?.model, "provider:", providerKey);
     return jsonErrorResponse(
       400,
-      `Unknown provider "${providerKey}". Use deepseek, kimi, minimax, azureopenai, or azureanthropic (or set model to a matching name, e.g. cursorproxy/claude-sonnet-4-6 or claude-sonnet-4-6).`,
+      `Unknown provider "${providerKey}". Use deepseek, kimi, minimax, minimax_cn, azureopenai, or azureanthropic (or set model to a matching name, e.g. cursorproxy/claude-sonnet-4-6 or claude-sonnet-4-6).`,
       "unknown_provider",
       "invalid_request_error"
     );
@@ -595,8 +621,14 @@ export default async function handler(req) {
 
   // Inject a default model when missing from the request body
   if (parsedBody && !parsedBody.model && providerKey !== "azureopenai") {
-    const defaults = { deepseek: "deepseek-chat", kimi: "kimi-latest", minimax: "MiniMax-M2.7", azureanthropic: "claude-sonnet-4-6" };
-    parsedBody.model = defaults[providerKey] || "deepseek-chat";
+    const defaults = {
+      deepseek: deepseekDefaultModel(),
+      kimi: "kimi-latest",
+      minimax: "MiniMax-M2.7",
+      minimax_cn: "MiniMax-M2.7",
+      azureanthropic: "claude-sonnet-4-6",
+    };
+    parsedBody.model = defaults[providerKey] || (providerKey === "deepseek" ? deepseekDefaultModel() : "deepseek-chat");
     bodyText = JSON.stringify(parsedBody);
     log("MODEL_INJECTED", "model:", parsedBody.model);
   }
@@ -616,6 +648,9 @@ export default async function handler(req) {
   if (azureAliasPublicId) {
     responseModelName = azureAliasPublicId;
   }
+  if (minimaxCnPublicId) {
+    responseModelName = minimaxCnPublicId;
+  }
   // Set azureModelName unconditionally after model normalization.
   // Previously this was a lazy-init that could read a stale value.
   if (providerKey === "azureopenai" || providerKey === "azureanthropic") {
@@ -634,7 +669,7 @@ export default async function handler(req) {
     : provider.url + "/v1/" + pathParam + queryString;
   log("UPSTREAM", upstreamUrl, "provider:", providerKey);
 
-  if (providerKey === "minimax" && parsedBody) {
+  if ((providerKey === "minimax" || providerKey === "minimax_cn") && parsedBody) {
     parsedBody.reasoning_split = true;
     bodyText = JSON.stringify(parsedBody);
   }
@@ -689,14 +724,20 @@ export default async function handler(req) {
   // DeepSeek and MiniMax chat endpoints do not accept inline image_url content.
   // The vision API (MiniMax VL-01 by default) is called to describe images,
   // and the descriptions are injected as text before forwarding.
-  const providersWithoutVision = ["deepseek", "minimax"];
+  const providersWithoutVision = ["deepseek", "minimax", "minimax_cn"];
   if (providersWithoutVision.includes(providerKey) && parsedBody?.messages) {
     const visionT0 = Date.now();
+    const visionOpts =
+      providerKey === "minimax_cn"
+        ? { minimaxRegion: "cn" }
+        : providerKey === "minimax"
+          ? { minimaxRegion: "intl" }
+          : {};
     const {
       messages: convertedMessages,
       convertedCount,
       errors,
-    } = await convertImagesToText(parsedBody.messages, sha256ImageHash);
+    } = await convertImagesToText(parsedBody.messages, sha256ImageHash, visionOpts);
     const visionMs = Date.now() - visionT0;
 
     // Apply rewrites whenever ANY image_url part was processed (success OR
@@ -1062,7 +1103,7 @@ export default async function handler(req) {
       if (!replyReasoningKey || !hasReasoningValue(accReasoning)) return;
       const size = reasoningSize(accReasoning);
       if (!force) {
-        const minDelta = providerKey === "minimax" ? 1 : 256;
+        const minDelta = providerKey === "minimax" || providerKey === "minimax_cn" ? 1 : 256;
         if (size === 0 || size < lastCachedReasoningSize + minDelta) return;
       }
       lastCachedReasoningSize = size;

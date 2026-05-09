@@ -160,8 +160,11 @@ export function providerFromModel(model) {
     return "azureopenai";
   }
   if (m.startsWith("gpt-") || /^o\d/i.test(m)) return "azureopenai";
+  // China console keys route to api.minimaxi.com — must match before generic minimax*
+  if (m.startsWith("minimax-cn")) return "minimax_cn";
   if (m.startsWith("minimax")) return "minimax";
   if (m.startsWith("kimi")) return "kimi";
+  // deepseek-chat / deepseek-reasoner (legacy) and V4: deepseek-v4-pro, deepseek-v4-flash
   if (m.startsWith("deepseek")) return "deepseek";
   return null;
 }

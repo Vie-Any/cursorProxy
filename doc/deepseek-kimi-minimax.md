@@ -1,5 +1,7 @@
 # DeepSeek / Kimi / MiniMax Provider Flow
 
+DeepSeek **V4** (`deepseek-v4-pro`, `deepseek-v4-flash`) uses the same OpenAI-compatible `/v1/` paths and `api.deepseek.com` base URL as legacy `deepseek-*` IDs; the proxy routes any bare model name beginning with `deepseek` to the DeepSeek provider. When the client omits `model`, the proxy defaults to `deepseek-v4-flash` (override with `DEEPSEEK_DEFAULT_MODEL`).
+
 ## Model Routing
 
 ```mermaid

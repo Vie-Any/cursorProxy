@@ -73,20 +73,33 @@ async function fetchWithTimeout(url, init) {
 
 // ─── Backends ───────────────────────────────────────────────────────────────
 
-async function describeWithMinimaxVl(base64Uri, prompt) {
-  const cfg = CONFIG.minimax_vl;
-  const key = apiKey();
-  if (!key) throw new Error("Missing MINIMAX_API_KEY for vision");
+async function describeWithMinimaxVl(base64Uri, prompt, region) {
+  const useCn = region === "cn";
+  const url = useCn
+    ? (process.env.VISION_API_URL_CN || "https://api.minimaxi.com/v1/coding_plan/vlm")
+    : (process.env.VISION_API_URL || CONFIG.minimax_vl.url);
+  const model = useCn
+    ? (process.env.VISION_MODEL_CN || process.env.VISION_MODEL || "MiniMax-VL-01")
+    : (process.env.VISION_MODEL || CONFIG.minimax_vl.model);
+  const keyEnv = useCn ? "MINIMAX_CN_API_KEY" : "MINIMAX_API_KEY";
+  const key = process.env[keyEnv] || "";
+  if (!key) {
+    throw new Error(
+      useCn
+        ? "Missing MINIMAX_CN_API_KEY for vision (China MiniMax chat)"
+        : "Missing MINIMAX_API_KEY for vision"
+    );
+  }
 
   const body = JSON.stringify({
-    model: cfg.model,
+    model,
     image_url: base64Uri,
     prompt: prompt || "Describe this image in detail",
   });
 
-  log("minimax_vl request", cfg.url, "size:", body.length);
+  log("minimax_vl request", url, "region:", useCn ? "cn" : "intl", "size:", body.length);
 
-  const res = await fetchWithTimeout(cfg.url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -173,10 +186,10 @@ async function describeWithOpenAi(base64Uri, prompt) {
  * @param {string} [prompt] - Optional custom prompt for the vision model
  * @returns {Promise<string>} - Text description of the image
  */
-export async function describeImage(base64Uri, prompt) {
+export async function describeImage(base64Uri, prompt, visionOpts = {}) {
   switch (PROVIDER) {
     case "minimax_vl":
-      return describeWithMinimaxVl(base64Uri, prompt);
+      return describeWithMinimaxVl(base64Uri, prompt, visionOpts.minimaxRegion);
     case "openai":
       return describeWithOpenAi(base64Uri, prompt);
     default:
