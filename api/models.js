@@ -90,23 +90,29 @@ export function withPublicResponseModel(json, fallbackModel, forceAlias = false)
   }
 
   const currentPublicId = publicModelId(json.model);
-  // Only trust the upstream model name if it maps back to the same public id
-  // the client asked for (case-normalized). Otherwise fall back to the
-  // requested model so the client sees a consistent model name.
-  const matchesRequested =
-    currentPublicId &&
-    fallbackPublicId &&
-    currentPublicId.toLowerCase() === fallbackPublicId.toLowerCase();
+  // Only trust the upstream model name if the bare deployment names match
+  // (i.e. both resolve to the same model underneath, case-normalized).
+  // Otherwise fall back to the client's requested model so the client sees
+  // the model it asked for rather than the upstream's internal deployment name.
+  // Strip all prefixes before comparing so cursorproxy/xxx and
+  // cursorproxy/minimax-cn-xxx are treated as the same bare model.
+  const currentBare = modelIdParts(json.model).bare.toLowerCase();
+  const fallbackBare = modelIdParts(fallbackModel).bare.toLowerCase();
+  const matchesRequested = currentBare.length > 0 && fallbackBare.length > 0 && currentBare === fallbackBare;
   log(
     "MODEL_RESPONSE",
     "json.model:",
     json.model,
     "currentPublicId:",
     currentPublicId || "(none)",
+    "currentBare:",
+    currentBare,
     "fallbackModel:",
     fallbackModel,
     "fallbackPublicId:",
     fallbackPublicId || "(none)",
+    "fallbackBare:",
+    fallbackBare,
     "matchesRequested:",
     matchesRequested,
     "looksLikeCompletion:",
