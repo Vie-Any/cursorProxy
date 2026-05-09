@@ -4,15 +4,38 @@ import { setKvDriver } from "./api/kv.js";
 
 const DEBUG = process.env.DEBUG === "true";
 
+function safeRedisUrl(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    if (url.username) url.username = "***";
+    if (url.password) url.password = "***";
+    return url.toString();
+  } catch {
+    return "(invalid REDIS_URL)";
+  }
+}
+
 // ─── Local Redis (Docker) ──────────────────────────────────────────────────
 // If REDIS_URL is set, use ioredis for low-latency local cache.
 // Falls back to Upstash REST (KV_URL + KV_TOKEN) if not set.
 if (process.env.REDIS_URL) {
   const { default: Redis } = await import("ioredis");
-  const redis = new Redis(process.env.REDIS_URL, { lazyConnect: false, enableReadyCheck: false });
+  const redisUrl = safeRedisUrl(process.env.REDIS_URL);
+  const redis = new Redis(process.env.REDIS_URL, { lazyConnect: true, enableReadyCheck: false });
   redis.on("error", (err) => console.error("[cursorProxy:server] redis error:", err.message));
-  setKvDriver(redis);
-  console.log("[cursorProxy:server] using local Redis:", process.env.REDIS_URL);
+  console.log("[cursorProxy:server] redis connecting:", redisUrl);
+  try {
+    await redis.connect();
+    const pong = await redis.ping();
+    if (pong !== "PONG") {
+      throw new Error(`unexpected PING response: ${pong}`);
+    }
+    setKvDriver(redis);
+    console.log("[cursorProxy:server] redis connected and verified:", redisUrl);
+  } catch (err) {
+    console.error("[cursorProxy:server] redis unavailable:", err.message);
+    redis.disconnect();
+  }
 }
 
 const PORT = process.env.PORT || 3000;
