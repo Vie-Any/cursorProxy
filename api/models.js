@@ -1,6 +1,16 @@
 const PUBLIC_MODEL_PREFIX = "cursorproxy/";
 const LEGACY_AZURE_MODEL_PREFIX = "azure/";
 
+const DEBUG = process.env.DEBUG === "true";
+
+function diag(...args) {
+  console.log("[cursorProxy:models]", ...args);
+}
+
+function log(...args) {
+  if (DEBUG) console.log("[cursorProxy:models]", ...args);
+}
+
 // Azure OpenAI alias registry. Public model ids in this map resolve to a real
 // Azure Foundry deployment via the env var named in `targetEnv`. Each alias
 // also carries an optional `effortEnv` whose value (when set) overrides the
@@ -87,6 +97,21 @@ export function withPublicResponseModel(json, fallbackModel, forceAlias = false)
     currentPublicId &&
     fallbackPublicId &&
     currentPublicId.toLowerCase() === fallbackPublicId.toLowerCase();
+  log(
+    "MODEL_RESPONSE",
+    "json.model:",
+    json.model,
+    "currentPublicId:",
+    currentPublicId || "(none)",
+    "fallbackModel:",
+    fallbackModel,
+    "fallbackPublicId:",
+    fallbackPublicId || "(none)",
+    "matchesRequested:",
+    matchesRequested,
+    "looksLikeCompletion:",
+    looksLikeCompletion
+  );
   if (matchesRequested) return { ...json, model: currentPublicId };
 
   const shouldAddFallback = fallbackPublicId && looksLikeCompletion;

@@ -227,12 +227,22 @@ export default async function handler(req) {
   }
 
   const clientModelName = parsedBody?.model;
+  const inferredProvider = providerFromModel(clientModelName);
   if (!providerKey) {
-    providerKey = providerFromModel(clientModelName);
+    providerKey = inferredProvider;
   }
   if (!providerKey) {
     providerKey = "deepseek";
   }
+  diag(
+    "PROVIDER_INFER",
+    "clientModel:",
+    clientModelName || "(none)",
+    "inferred:",
+    inferredProvider || "(null)",
+    "final:",
+    providerKey
+  );
 
   let modelNames = normalizeParsedBodyModel(parsedBody);
   let upstreamModelName = modelNames.bare;
