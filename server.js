@@ -48,6 +48,8 @@ const ROUTES = [
   { pattern: /^\/minimax-cn\/v1\/(.+)$/, provider: "minimax_cn" },
   { pattern: /^\/azure-openai\/v1\/(.+)$/, provider: "azureopenai" },
   { pattern: /^\/azure-anthropic\/v1\/(.+)$/, provider: "azureanthropic" },
+  // Some clients use Base URL without /v1 and POST /chat/completions (not /v1/chat/completions).
+  { pattern: /^\/(chat\/completions)$/, provider: null },
   { pattern: /^\/v1\/(.+)$/, provider: null },
   { pattern: /^\/v0\/(.+)$/, provider: null },
 ];
