@@ -80,9 +80,16 @@ export function withPublicResponseModel(json, fallbackModel, forceAlias = false)
   }
 
   const currentPublicId = publicModelId(json.model);
-  if (currentPublicId) return { ...json, model: currentPublicId };
+  // Only trust the upstream model name if it maps back to the same public id
+  // the client asked for (case-normalized). Otherwise fall back to the
+  // requested model so the client sees a consistent model name.
+  const matchesRequested =
+    currentPublicId &&
+    fallbackPublicId &&
+    currentPublicId.toLowerCase() === fallbackPublicId.toLowerCase();
+  if (matchesRequested) return { ...json, model: currentPublicId };
 
-  const shouldAddFallback = fallbackPublicId && Array.isArray(json.choices);
+  const shouldAddFallback = fallbackPublicId && looksLikeCompletion;
   if (!shouldAddFallback) return json;
 
   return { ...json, model: fallbackPublicId };
