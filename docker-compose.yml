@@ -1,6 +1,6 @@
 services:
   cursorproxy:
-    image: lqdflying/cursorproxy:latest
+    image: buglwriter/cursorproxy:latest
     pull_policy: always
     restart: unless-stopped
     ports:
